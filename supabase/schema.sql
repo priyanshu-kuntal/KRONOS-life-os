@@ -213,6 +213,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_points_activity ON public.activity_point
 CREATE INDEX IF NOT EXISTS idx_goals_user ON public.goals(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_reminders_user_remind ON public.reminders(user_id, remind_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON public.notifications(user_id, read);
+CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON public.ai_conversations(user_id, updated_at DESC);
 
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
