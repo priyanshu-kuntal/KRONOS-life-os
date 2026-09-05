@@ -5,6 +5,7 @@
 import { runLocationUtilsTests } from './locationUtils.test';
 import { runAiMissionControlTests } from './aiMissionControl.test';
 import { runSupabaseAiIntegrationTests } from '../features/ai/__tests__/supabaseAiIntegration.test';
+import { runPhase4bHardeningTests } from '../features/ai/__tests__/phase4bHardening.test';
 
 async function runAll() {
   console.log('================================================================');
@@ -24,6 +25,11 @@ async function runAll() {
 
     // 3. Target Architecture: Supabase Edge Function & AI Provider Tests
     runSupabaseAiIntegrationTests();
+
+    console.log('\n');
+
+    // 4. Phase 4B Hardening & Confirmation Security Tests
+    await runPhase4bHardeningTests();
 
     console.log('\n================================================================');
     console.log('           ALL KRONOS TESTS COMPLETED SUCCESSFULLY!             ');
