@@ -8,6 +8,7 @@ import { useThemeStore } from '../store/useThemeStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { ToastContainer } from '../components/ui/Toast';
 import { QuickActionSheet } from '../components/ui/QuickActionSheet';
+import { MissionControlChatModal } from '../components/ui/MissionControlChatModal';
 import { radii, typography } from '../constants/theme';
 
 export default function RootLayout() {
@@ -85,6 +86,7 @@ export default function RootLayout() {
       </Stack>
       <ToastContainer />
       <QuickActionSheet />
+      <MissionControlChatModal />
     </SafeAreaProvider>
   );
 }

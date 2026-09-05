@@ -23,6 +23,7 @@ import { useThemeStore } from '../../store/useThemeStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useLifeOsStore } from '../../store/useLifeOsStore';
 import { useToastStore } from '../../store/useToastStore';
+import { useAiStore } from '../../store/useAiStore';
 import { Card } from '../../components/ui/Card';
 import { CircularProgress } from '../../components/ui/CircularProgress';
 import { Badge } from '../../components/ui/Badge';
@@ -36,6 +37,7 @@ import { TaskEditModal } from '../../components/ui/TaskEditModal';
 import { EventEditModal } from '../../components/ui/EventEditModal';
 import { HabitDetailModal } from '../../components/ui/HabitDetailModal';
 import { ReminderEditModal } from '../../components/ui/ReminderEditModal';
+import { MissionControlBriefingCard } from '../../components/ui/MissionControlBriefingCard';
 import { radii, spacing, typography } from '../../constants/theme';
 import { formatDisplayDate, getGreeting } from '../../lib/formatters';
 import { Task, Habit, EventItem, Reminder } from '../../types/models';
@@ -63,6 +65,7 @@ export default function HomeScreen() {
     setQuickActionOpen,
   } = useLifeOsStore();
   const { showToast } = useToastStore();
+  const { openChat, generateBriefing } = useAiStore();
 
   const [selectedTaskToEdit, setSelectedTaskToEdit] = useState<Task | null>(null);
   const [selectedEventToEdit, setSelectedEventToEdit] = useState<EventItem | null>(null);
@@ -73,7 +76,9 @@ export default function HomeScreen() {
 
   // Load user data on startup
   useEffect(() => {
-    fetchData(userId, isDemoMode);
+    fetchData(userId, isDemoMode).then(() => {
+      generateBriefing();
+    });
   }, [userId, isDemoMode]);
 
   const greeting = getGreeting();
@@ -230,60 +235,12 @@ export default function HomeScreen() {
               </View>
             </Card>
 
-            {/* 3. AI PROACTIVE INSIGHT */}
-            {primaryInsight && (
-              <Card
-                style={[
-                  styles.aiCard,
-                  isWide && styles.gridCard,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
-                  },
-                ]}
-                padding="md"
-              >
-                <View style={styles.aiHeader}>
-                  <View style={styles.aiBadgeRow}>
-                    <View style={[styles.aiIconDot, { backgroundColor: `${theme.aiIntelligence}22` }]}>
-                      <Sparkles size={11} color={theme.aiIntelligence} />
-                    </View>
-                    <Text style={[styles.aiBadgeLabel, { color: theme.aiIntelligence }]}>
-                      AI INSIGHT
-                    </Text>
-                  </View>
-                  <Text style={[styles.aiConfidence, { color: theme.textMuted }]}>
-                    94% confidence
-                  </Text>
-                </View>
-
-                <Text style={[styles.aiTitle, { color: theme.textPrimary }]}>
-                  {primaryInsight.title}
-                </Text>
-                <Text style={[styles.aiMessage, { color: theme.textSecondary }]}>
-                  "{primaryInsight.message}"
-                </Text>
-
-                {primaryInsight.actionText && (
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={handleInsightAction}
-                    style={[
-                      styles.aiActionButton,
-                      {
-                        backgroundColor: theme.surfaceElevated,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.aiActionText, { color: theme.textPrimary }]}>
-                      {primaryInsight.actionText}
-                    </Text>
-                    <ArrowRight size={13} color={theme.textSecondary} />
-                  </TouchableOpacity>
-                )}
-              </Card>
-            )}
+            {/* 3. AI MISSION CONTROL BRIEFING */}
+            <MissionControlBriefingCard
+              style={isWide ? styles.gridCard : undefined}
+              onOpenChat={openChat}
+              onOptimizeSchedule={() => router.push('/(tabs)/schedule')}
+            />
           </View>
 
           {/* 4. UPCOMING REMINDER NOTIFICATION STRIP (If active reminder exists) */}
