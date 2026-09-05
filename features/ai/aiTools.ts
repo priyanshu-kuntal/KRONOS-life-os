@@ -317,18 +317,17 @@ export async function executeKronosTool(
           task = store.tasks.find((t) => t.title.toLowerCase().includes(lower));
         }
 
-        if (!task) {
-          return { toolCallId, toolName, success: false, error: `Task not found to delete.` };
-        }
+        const taskTitle = task ? task.title : (args.taskTitle || 'selected task');
+        const taskId = task ? task.id : (args.taskId || 'target-task');
 
-        // Check explicit confirmation
+        // Check explicit confirmation first
         if (!args.isConfirmed) {
           const pendingAction: PendingActionPayload = {
             id: generateId(),
             toolName: 'delete_task',
-            description: `Delete task "${task.title}"`,
+            description: `Delete task "${taskTitle}"`,
             destructive: true,
-            payload: { taskId: task.id, isConfirmed: true },
+            payload: { taskId, taskTitle, isConfirmed: true },
           };
 
           return {
@@ -336,10 +335,14 @@ export async function executeKronosTool(
             toolName,
             success: true,
             requiresConfirmation: true,
-            confirmationPrompt: `Are you sure you want to delete task "${task.title}"?`,
+            confirmationPrompt: `Are you sure you want to delete task "${taskTitle}"?`,
             pendingAction,
             result: { pending: true },
           };
+        }
+
+        if (!task) {
+          return { toolCallId, toolName, success: false, error: `Task not found to delete.` };
         }
 
         const res = await store.deleteTask(task.id);
@@ -538,17 +541,16 @@ export async function executeKronosTool(
           event = store.events.find((e) => e.title.toLowerCase().includes(lower));
         }
 
-        if (!event) {
-          return { toolCallId, toolName, success: false, error: `Event not found to delete.` };
-        }
+        const eventTitle = event ? event.title : (args.eventTitle || 'scheduled item');
+        const eventId = event ? event.id : (args.eventId || 'target-event');
 
         if (!args.isConfirmed) {
           const pendingAction: PendingActionPayload = {
             id: generateId(),
             toolName: 'delete_event',
-            description: `Delete scheduled event "${event.title}"`,
+            description: `Delete scheduled event "${eventTitle}"`,
             destructive: true,
-            payload: { eventId: event.id, isConfirmed: true },
+            payload: { eventId, eventTitle, isConfirmed: true },
           };
 
           return {
@@ -556,10 +558,14 @@ export async function executeKronosTool(
             toolName,
             success: true,
             requiresConfirmation: true,
-            confirmationPrompt: `Are you sure you want to remove event "${event.title}" from your schedule?`,
+            confirmationPrompt: `Are you sure you want to remove event "${eventTitle}" from your schedule?`,
             pendingAction,
             result: { pending: true },
           };
+        }
+
+        if (!event) {
+          return { toolCallId, toolName, success: false, error: `Event not found to delete.` };
         }
 
         const res = await store.deleteEvent(event.id);

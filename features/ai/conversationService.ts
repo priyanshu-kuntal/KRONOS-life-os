@@ -18,6 +18,32 @@ export interface AIConversationRecord {
 }
 
 const DEMO_STORAGE_KEY = '@kronos_demo_ai_conversations';
+const memoryStore: Record<string, string> = {};
+
+async function getStorageItem(key: string): Promise<string | null> {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem(key);
+    }
+    const val = await AsyncStorage.getItem(key);
+    return val !== null ? val : memoryStore[key] || null;
+  } catch {
+    return memoryStore[key] || null;
+  }
+}
+
+async function setStorageItem(key: string, val: string): Promise<void> {
+  memoryStore[key] = val;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(key, val);
+      return;
+    }
+    await AsyncStorage.setItem(key, val);
+  } catch {
+    // memoryStore already set
+  }
+}
 
 export const conversationService = {
   /**
@@ -27,7 +53,7 @@ export const conversationService = {
   async fetchConversations(userId: string, isDemoMode = false): Promise<AIConversationRecord[]> {
     if (isDemoMode || !isSupabaseConfigured) {
       try {
-        const json = await AsyncStorage.getItem(DEMO_STORAGE_KEY);
+        const json = await getStorageItem(DEMO_STORAGE_KEY);
         if (!json) return [];
         const items: AIConversationRecord[] = JSON.parse(json);
         return items.filter((c) => c.userId === userId);
@@ -80,7 +106,7 @@ export const conversationService = {
 
     if (isDemoMode || !isSupabaseConfigured) {
       try {
-        const json = await AsyncStorage.getItem(DEMO_STORAGE_KEY);
+        const json = await getStorageItem(DEMO_STORAGE_KEY);
         const list: AIConversationRecord[] = json ? JSON.parse(json) : [];
         const existingIdx = list.findIndex((c) => c.id === record.id);
         if (existingIdx >= 0) {
@@ -88,7 +114,7 @@ export const conversationService = {
         } else {
           list.unshift(record);
         }
-        await AsyncStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(list));
+        await setStorageItem(DEMO_STORAGE_KEY, JSON.stringify(list));
         return { success: true, id: record.id };
       } catch (e: any) {
         return { success: false, error: e?.message };
@@ -127,11 +153,11 @@ export const conversationService = {
   ): Promise<{ success: boolean; error?: string }> {
     if (isDemoMode || !isSupabaseConfigured) {
       try {
-        const json = await AsyncStorage.getItem(DEMO_STORAGE_KEY);
+        const json = await getStorageItem(DEMO_STORAGE_KEY);
         if (!json) return { success: true };
         const list: AIConversationRecord[] = JSON.parse(json);
         const filtered = list.filter((c) => !(c.id === conversationId && c.userId === userId));
-        await AsyncStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(filtered));
+        await setStorageItem(DEMO_STORAGE_KEY, JSON.stringify(filtered));
         return { success: true };
       } catch (e: any) {
         return { success: false, error: e?.message };
