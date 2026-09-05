@@ -250,10 +250,45 @@ export interface Database {
           calories?: number;
           elevation_gain_meters?: number;
           started_at?: string;
-          completed_at?: string | null;
+          status?: 'active' | 'paused' | 'completed' | 'cancelled';
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      activity_points: {
+        Row: {
+          id: string;
+          activity_id: string;
+          user_id: string;
+          latitude: number;
+          longitude: number;
+          altitude: number | null;
+          speed: number | null;
+          heart_rate: number | null;
+          timestamp: string;
+        };
+        Insert: {
+          id?: string;
+          activity_id: string;
+          user_id: string;
+          latitude: number;
+          longitude: number;
+          altitude?: number | null;
+          speed?: number | null;
+          heart_rate?: number | null;
+          timestamp: string;
+        };
+        Update: {
+          id?: string;
+          activity_id?: string;
+          user_id?: string;
+          latitude?: number;
+          longitude?: number;
+          altitude?: number | null;
+          speed?: number | null;
+          heart_rate?: number | null;
+          timestamp?: string;
         };
       };
     };

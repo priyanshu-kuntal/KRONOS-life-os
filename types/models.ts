@@ -77,6 +77,31 @@ export interface HabitLog {
   notes?: string;
 }
 
+export type WorkoutStatus = 'idle' | 'active' | 'paused' | 'completed' | 'cancelled';
+export type ActivityStatus = 'active' | 'paused' | 'completed' | 'cancelled';
+
+export interface GPSPoint {
+  latitude: number;
+  longitude: number;
+  altitude?: number | null;
+  speed?: number | null;
+  heading?: number | null;
+  accuracy?: number | null;
+  timestamp: number; // epoch milliseconds
+}
+
+export interface ActivityPoint {
+  id?: string;
+  activityId: string;
+  userId: string;
+  latitude: number;
+  longitude: number;
+  altitude?: number | null;
+  speed?: number | null;
+  heartRate?: number | null;
+  timestamp: string; // ISO string
+}
+
 export interface Activity {
   id: string;
   userId: string;
@@ -95,6 +120,8 @@ export interface Activity {
   completedAt?: string;
   notes?: string;
   routeSvgPath?: string;
+  status?: ActivityStatus;
+  pointsCount?: number;
 }
 
 export interface Goal {
