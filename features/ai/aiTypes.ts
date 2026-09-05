@@ -37,7 +37,7 @@ export interface ToolExecutionResult {
   toolCallId: string;
   toolName: string;
   success: boolean;
-  result: any;
+  result?: any;
   error?: string;
   requiresConfirmation?: boolean;
   confirmationPrompt?: string;
