@@ -23,6 +23,7 @@ import { executeKronosTool } from '../features/ai/aiTools';
 import { useLifeOsStore } from './useLifeOsStore';
 import { useAuthStore } from './useAuthStore';
 import { generateId } from '../lib/utils';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 interface AiState {
   messages: ChatMessage[];
@@ -225,34 +226,83 @@ export const useAiStore = create<AiState>((set, get) => ({
     const pending = get().pendingAction;
     const auth = useAuthStore.getState();
     const userId = auth.user?.id || 'demo-user-001';
+    const isDemoMode = auth.isDemoMode;
 
     if (!pending) return;
 
     set({ isLoading: true });
 
     try {
-      // Execute the destructive action with isConfirmed: true
-      const result = await executeKronosTool(
-        pending.toolName,
-        { ...pending.payload, isConfirmed: true },
-        userId
-      );
+      if (!isDemoMode && isSupabaseConfigured) {
+        // Send confirmation directly to Edge Function with user JWT
+        const lifeOs = useLifeOsStore.getState();
+        const ctx = buildAIContext({
+          user: auth.user || {
+            id: userId,
+            email: 'user@kronos.internal',
+            fullName: 'Explorer',
+            timezone: 'UTC',
+            themePreference: 'dark',
+            weeklyDistanceGoalKm: 25,
+            dailyTaskGoal: 6,
+            currentStreak: 5,
+            totalActivitiesCount: 12,
+          },
+          tasks: lifeOs.tasks,
+          events: lifeOs.events,
+          habits: lifeOs.habits,
+          goals: lifeOs.goals,
+          reminders: lifeOs.reminders,
+          activities: lifeOs.activities,
+        });
 
-      const confirmMsg: ChatMessage = {
-        id: generateId(),
-        role: 'assistant',
-        content: result.success
-          ? `Action confirmed and executed: **${pending.description}**.`
-          : `Failed to execute: ${result.error}`,
-        timestamp: new Date().toISOString(),
-        status: 'sent',
-      };
+        const res = await sendChatMessage({
+          message: 'Confirmed',
+          context: ctx,
+          conversationHistory: get().messages,
+          userId,
+          isDemoMode: false,
+          isConfirmed: true,
+          pendingAction: pending,
+        });
 
-      set({
-        messages: [...get().messages, confirmMsg],
-        pendingAction: null,
-        isLoading: false,
-      });
+        const confirmMsg: ChatMessage = {
+          id: generateId(),
+          role: 'assistant',
+          content: res.message,
+          timestamp: new Date().toISOString(),
+          status: 'sent',
+        };
+
+        set({
+          messages: [...get().messages, confirmMsg],
+          pendingAction: null,
+          isLoading: false,
+        });
+      } else {
+        // Local execution in demo mode
+        const result = await executeKronosTool(
+          pending.toolName,
+          { ...(pending.payload || {}), isConfirmed: true },
+          userId
+        );
+
+        const confirmMsg: ChatMessage = {
+          id: generateId(),
+          role: 'assistant',
+          content: result.success
+            ? `Action confirmed and executed: **${pending.description || pending.toolName}**.`
+            : `Failed to execute: ${result.error || 'Unknown error'}`,
+          timestamp: new Date().toISOString(),
+          status: 'sent',
+        };
+
+        set({
+          messages: [...get().messages, confirmMsg],
+          pendingAction: null,
+          isLoading: false,
+        });
+      }
 
       // Refresh briefing and store context
       get().generateBriefing();

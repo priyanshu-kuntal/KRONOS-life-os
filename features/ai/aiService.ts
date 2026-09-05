@@ -14,6 +14,8 @@ import { formatContextForPrompt } from './contextEngine';
 import { generateId } from '../../lib/utils';
 import { getLocalDateString } from '../tasks/taskUtils';
 import { Priority } from '../../types/models';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import { useLifeOsStore } from '../../store/useLifeOsStore';
 
 const AI_API_URL = process.env.EXPO_PUBLIC_AI_API_URL || '';
 const AI_API_KEY = process.env.EXPO_PUBLIC_AI_API_KEY || '';
@@ -24,11 +26,13 @@ export interface SendMessageOptions {
   conversationHistory: ChatMessage[];
   userId: string;
   isDemoMode?: boolean;
+  isConfirmed?: boolean;
+  pendingAction?: PendingActionPayload | null;
 }
 
 /**
  * Main dispatch function for AI Mission Control.
- * Dispatches to remote secure server/Edge Function if configured,
+ * Dispatches to Supabase Edge Function (/functions/v1/kronos-ai) with authenticated user JWT,
  * or falls back cleanly to the deterministic KRONOS Heuristic Engine for Demo/Offline.
  */
 export async function sendChatMessage({
@@ -37,58 +41,63 @@ export async function sendChatMessage({
   conversationHistory,
   userId,
   isDemoMode = false,
+  isConfirmed = false,
+  pendingAction = null,
 }: SendMessageOptions): Promise<AIResponseContract> {
   const trimmed = message.trim();
   if (!trimmed) {
     return { message: 'Please provide a message or command for Mission Control.' };
   }
 
-  // 1. If in Demo mode or no remote AI endpoint configured, use the Deterministic Engine
-  const shouldUseLocalEngine = isDemoMode || !AI_API_URL || AI_API_URL.includes('placeholder');
+  // 1. Determine Edge Function endpoint
+  const defaultEdgeUrl = isSupabaseConfigured && process.env.EXPO_PUBLIC_SUPABASE_URL
+    ? `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/kronos-ai`
+    : '';
+  const effectiveEndpoint = AI_API_URL || defaultEdgeUrl;
+
+  // 2. If in Demo mode or no remote AI endpoint configured, use the Deterministic Engine
+  const shouldUseLocalEngine =
+    isDemoMode ||
+    !effectiveEndpoint ||
+    effectiveEndpoint.includes('placeholder-project') ||
+    effectiveEndpoint.includes('placeholder-url');
 
   if (shouldUseLocalEngine) {
     return runDeterministicMissionControl(trimmed, context, userId);
   }
 
-  // 2. Production Remote AI Provider invocation
+  // 3. Production Remote AI Provider / Supabase Edge Function invocation
   try {
-    const systemPrompt = `You are KRONOS AI Mission Control, the intelligent executive assistant of the KRONOS Personal Life OS.
-Your role is to understand user state, assist with daily planning, provide cross-domain insights, and execute controlled tools for Tasks, Habits, Calendar Events, Goals, and Reminders.
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
 
-CRITICAL RULES:
-1. Always base statements on the provided KRONOS USER SNAPSHOT. Do not hallucinate tasks, habits, or fitness data.
-2. For action intents (e.g. creating tasks, logging habits, scheduling events), invoke appropriate tools from the toolset.
-3. Destructive actions (deleting tasks, removing events) will require explicit confirmation.
-4. Keep answers concise, actionable, and executive-styled.
-
-${formatContextForPrompt(context)}`;
-
-    const messagesPayload = [
-      { role: 'system', content: systemPrompt },
-      ...conversationHistory.slice(-6).map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-      { role: 'user', content: trimmed },
-    ];
+    if (!accessToken) {
+      console.warn('[KRONOS AI] No active Supabase session found. Using local cognition.');
+      return runDeterministicMissionControl(trimmed, context, userId);
+    }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 18000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
     };
     if (AI_API_KEY) {
-      headers['Authorization'] = `Bearer ${AI_API_KEY}`;
+      headers['x-api-key'] = AI_API_KEY;
     }
 
-    const response = await fetch(AI_API_URL, {
+    const response = await fetch(effectiveEndpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        messages: messagesPayload,
-        tools: KRONOS_TOOLS,
-        user_id: userId, // Server will verify auth.uid() against bearer token in production
+        message: trimmed,
+        conversationHistory: conversationHistory.slice(-6).map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+        isConfirmed,
+        pendingAction,
       }),
       signal: controller.signal,
     });
@@ -96,43 +105,22 @@ ${formatContextForPrompt(context)}`;
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.warn(`[KRONOS AI] Remote API returned HTTP ${response.status}. Falling back to deterministic engine.`);
+      console.warn(`[KRONOS AI] Edge Function returned HTTP ${response.status}. Falling back to deterministic engine.`);
       return runDeterministicMissionControl(trimmed, context, userId);
     }
 
     const data = await response.json();
 
-    // Check if remote model called tools
-    if (data.tool_calls && Array.isArray(data.tool_calls) && data.tool_calls.length > 0) {
-      const toolResults: ToolExecutionResult[] = [];
-      let pendingAction: PendingActionPayload | undefined;
-      let requiresConfirmation = false;
-
-      for (const call of data.tool_calls) {
-        const toolName = call.function?.name || call.name;
-        const toolArgs = typeof call.function?.arguments === 'string'
-          ? JSON.parse(call.function.arguments)
-          : (call.function?.arguments || call.arguments || {});
-
-        const res = await executeKronosTool(toolName, toolArgs, userId);
-        toolResults.push(res);
-        if (res.requiresConfirmation && res.pendingAction) {
-          requiresConfirmation = true;
-          pendingAction = res.pendingAction;
-        }
-      }
-
-      return {
-        message: data.content || data.message || 'Action processed.',
-        toolCalls: toolResults,
-        requiresConfirmation,
-        pendingAction,
-      };
+    // Trigger background store refresh so React Native UI reflects mutations
+    if (data.toolCalls && data.toolCalls.length > 0 && !data.requiresConfirmation) {
+      useLifeOsStore.getState().fetchData(userId, false).catch(() => {});
     }
 
     return {
-      message: data.content || data.message || 'Mission Control updated.',
-      toolCalls: [],
+      message: data.message || data.content || 'Mission Control updated.',
+      toolCalls: data.toolCalls || [],
+      requiresConfirmation: Boolean(data.requiresConfirmation),
+      pendingAction: data.pendingAction || undefined,
     };
   } catch (err: any) {
     console.warn('[KRONOS AI] Remote invocation failed, employing deterministic fallback:', err?.message);
