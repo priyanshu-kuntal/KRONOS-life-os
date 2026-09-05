@@ -27,6 +27,7 @@ export interface SendMessageOptions {
   userId: string;
   isDemoMode?: boolean;
   isConfirmed?: boolean;
+  pendingActionId?: string;
   pendingAction?: PendingActionPayload | null;
 }
 
@@ -42,10 +43,11 @@ export async function sendChatMessage({
   userId,
   isDemoMode = false,
   isConfirmed = false,
+  pendingActionId,
   pendingAction = null,
 }: SendMessageOptions): Promise<AIResponseContract> {
   const trimmed = message.trim();
-  if (!trimmed) {
+  if (!trimmed && !pendingActionId) {
     return { message: 'Please provide a message or command for Mission Control.' };
   }
 
@@ -96,6 +98,7 @@ export async function sendChatMessage({
           role: m.role,
           content: m.content,
         })),
+        pendingActionId,
         isConfirmed,
         pendingAction,
       }),
@@ -120,6 +123,7 @@ export async function sendChatMessage({
       message: data.message || data.content || 'Mission Control updated.',
       toolCalls: data.toolCalls || [],
       requiresConfirmation: Boolean(data.requiresConfirmation),
+      pendingActionId: data.pendingActionId,
       pendingAction: data.pendingAction || undefined,
     };
   } catch (err: any) {
@@ -293,6 +297,27 @@ export async function runDeterministicMissionControl(
 
     return {
       message: `Calendar updated: **"${title}"** scheduled for **${startHour}:00 - ${endHour}:${endMin}** on ${targetDateStr}.`,
+      toolCalls: [toolRes],
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // INTENT 3.5: RESCHEDULE / MOVE CALENDAR EVENT (e.g. "Move my workout to 7 PM")
+  // --------------------------------------------------------------------------
+  if (lower.includes('move my') || lower.includes('reschedule') || lower.includes('move event')) {
+    const timeMatch = prompt.match(/(?:to|at)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d{1,2}:\d{2})/i);
+    const targetTime = timeMatch ? timeMatch[1].trim() : '19:00';
+    let targetName = 'workout';
+    if (lower.includes('deep work')) targetName = 'deep work';
+    else if (lower.includes('meeting')) targetName = 'meeting';
+    else if (lower.includes('run')) targetName = 'run';
+    else if (lower.includes('workout')) targetName = 'workout';
+
+    const toolRes = await executeKronosTool('update_event', { eventTitle: targetName, time: targetTime }, userId);
+    return {
+      message: toolRes.success
+        ? toolRes.result?.message || `Rescheduled "${targetName}" to ${targetTime}.`
+        : `Could not find an event matching "${targetName}" to reschedule.`,
       toolCalls: [toolRes],
     };
   }

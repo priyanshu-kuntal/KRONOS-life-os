@@ -263,6 +263,7 @@ export const useAiStore = create<AiState>((set, get) => ({
           userId,
           isDemoMode: false,
           isConfirmed: true,
+          pendingActionId: pending.id,
           pendingAction: pending,
         });
 

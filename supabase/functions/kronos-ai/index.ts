@@ -1,5 +1,5 @@
 // ==============================================================================
-// KRONOS SUPABASE EDGE FUNCTION - AI MISSION CONTROL
+// KRONOS SUPABASE EDGE FUNCTION - AI MISSION CONTROL (HARDENED)
 // ==============================================================================
 // Target Production Architecture:
 // React Native -> useAiStore -> Supabase Edge Function -> Authenticated User ->
@@ -36,7 +36,7 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
 
-    // Create client scoped with user's JWT so RLS is automatically active
+    // Scoped client with user's JWT so PostgreSQL RLS is active
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -60,19 +60,57 @@ serve(async (req: Request) => {
     const {
       message = '',
       conversationHistory = [],
+      pendingActionId = null,
       isConfirmed = false,
-      pendingAction = null,
     } = body;
 
-    // 4. Handle Confirmed Destructive Actions
-    if (isConfirmed && pendingAction) {
+    // 4. SERVER-AUTHORITATIVE CONFIRMATION FLOW
+    if (pendingActionId) {
+      // 4.1 Lookup server pending action for authenticated user
+      const { data: action, error: actionErr } = await supabase
+        .from('pending_actions')
+        .select('*')
+        .eq('id', pendingActionId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (actionErr || !action) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden: Pending action not found or does not belong to authenticated user.' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // 4.2 Replay protection
+      if (action.executed) {
+        return new Response(
+          JSON.stringify({ error: 'Conflict: This action has already been executed (replay prevented).' }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // 4.3 Expiry check (5-minute TTL)
+      if (new Date(action.expires_at).getTime() < Date.now()) {
+        return new Response(
+          JSON.stringify({ error: 'Gone: Pending action confirmation has expired (5-minute limit).' }),
+          { status: 410, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // 4.4 Parameter integrity: execute with stored server parameters
       const toolRes = await executeServerTool(
         supabase,
         userId,
-        pendingAction.toolName,
-        pendingAction.parameters,
-        true
+        action.tool_name,
+        action.parameters,
+        true // Authorized by verified server nonce
       );
+
+      // 4.5 Invalidate pending action
+      await supabase
+        .from('pending_actions')
+        .update({ executed: true })
+        .eq('id', action.id);
 
       return new Response(
         JSON.stringify({
@@ -85,6 +123,14 @@ serve(async (req: Request) => {
       );
     }
 
+    // 4.6 Reject arbitrary client-supplied boolean bypass attempts
+    if (isConfirmed && !pendingActionId) {
+      return new Response(
+        JSON.stringify({ error: 'Bad Request: Confirmation requires a valid server-issued pendingActionId.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // 5. Build Authoritative Server-side KRONOS Context
     const { snapshot, promptString } = await buildServerContext(supabase, userId);
 
@@ -93,13 +139,13 @@ You have direct, real-time access to the user's authoritative data and database 
 
 CRITICAL INSTRUCTIONS:
 1. Always base all statements on the provided AUTHENTICATED USER SNAPSHOT. Never fabricate or hallucinate.
-2. Whenever the user intends to add, schedule, log, update, or delete an item, call the appropriate tool.
-3. Destructive actions (deleting tasks or events) will halt for user confirmation before database deletion.
+2. Whenever the user intends to add, schedule, reschedule, log, update, or delete an item, call the appropriate tool.
+3. Destructive actions (deleting tasks or events) will halt for user confirmation with a server-issued pendingActionId.
 4. Keep natural language responses concise, executive, and inspiring.
 
 ${promptString}`;
 
-    // 6. Invoke Real LLM with Tool Calling Declarations
+    // 6. Invoke Real LLM with Expanded Tool Declarations
     const initialLlmRes = await callLLMProvider({
       systemPrompt,
       userMessage: message,
@@ -117,19 +163,20 @@ ${promptString}`;
           userId,
           call.name,
           call.arguments,
-          isConfirmed
+          false // Normal pass: destructive actions will halt and create pending_action
         );
 
         toolResults.push(result);
         toolResultsForLLM.push({ toolName: call.name, result });
 
-        // If tool requires user confirmation, halt and return immediately
+        // If tool requires user confirmation, halt and return server-issued pendingActionId
         if (result.requiresConfirmation && result.pendingAction) {
           return new Response(
             JSON.stringify({
               message: result.message,
               toolCalls: toolResults,
               requiresConfirmation: true,
+              pendingActionId: result.pendingActionId,
               pendingAction: result.pendingAction,
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -213,6 +260,6 @@ async function persistAiConversation(
       updated_at: today,
     });
   } catch {
-    // Non-blocking log
+    // Non-blocking
   }
 }

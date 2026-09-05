@@ -31,6 +31,9 @@ export interface PendingActionPayload {
   description: string;
   destructive: boolean;
   payload: Record<string, any>;
+  title?: string;
+  parameters?: Record<string, any>;
+  expiresAt?: string;
 }
 
 export interface ToolExecutionResult {
@@ -41,6 +44,7 @@ export interface ToolExecutionResult {
   error?: string;
   requiresConfirmation?: boolean;
   confirmationPrompt?: string;
+  pendingActionId?: string;
   pendingAction?: PendingActionPayload;
 }
 
@@ -254,5 +258,6 @@ export interface AIResponseContract {
   recommendations?: ScheduleRecommendation[];
   toolCalls?: ToolExecutionResult[];
   requiresConfirmation?: boolean;
+  pendingActionId?: string;
   pendingAction?: PendingActionPayload;
 }
