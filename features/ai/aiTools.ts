@@ -171,6 +171,22 @@ export const KRONOS_TOOLS: ToolDefinition[] = [
     },
   },
   {
+    name: 'update_event',
+    description: 'Update or reschedule an existing calendar event or workout block to a new time window.',
+    parameters: {
+      type: 'object',
+      properties: {
+        eventId: { type: 'string', description: 'ID of the event to reschedule' },
+        eventTitle: { type: 'string', description: 'Title or name of event if ID is unknown (e.g. workout)' },
+        startTime: { type: 'string', description: 'New start time in ISO 8601 string' },
+        endTime: { type: 'string', description: 'New end time in ISO 8601 string' },
+        time: { type: 'string', description: 'Natural time string (e.g. 19:00 or 7 PM today)' },
+        title: { type: 'string', description: 'Updated title' },
+        category: { type: 'string', description: 'Updated category' },
+      },
+    },
+  },
+  {
     name: 'delete_event',
     description: 'Delete a scheduled calendar event. This is a DESTRUCTIVE action.',
     isDestructive: true,
@@ -473,12 +489,15 @@ export async function executeKronosTool(
           const lower = args.goalTitle.toLowerCase();
           goal = store.goals.find((g) => g.title.toLowerCase().includes(lower));
         }
-
-        if (!goal) {
-          return { toolCallId, toolName, success: false, error: `Goal not found.` };
+        if (!goal && !args.goalId && !args.goalTitle) {
+          goal = store.goals.find((g) => g.status === 'active') || store.goals[0];
         }
 
-        const res = await store.updateGoalProgress(goal.id, args.newValue, args.isDelta);
+        if (!goal) {
+          return { toolCallId, toolName, success: false, error: `Goal not found to update progress.` };
+        }
+
+        const res = await store.updateGoalProgress(goal.id, args.newValue, args.isDelta ?? true);
         return {
           toolCallId,
           toolName,
@@ -531,6 +550,73 @@ export async function executeKronosTool(
           toolName,
           success: res.success,
           result: { message: `Scheduled "${args.title}" from ${startDisplay} to ${endDisplay}.` },
+        };
+      }
+
+      case 'update_event': {
+        let event = args.eventId ? store.events.find((e) => e.id === args.eventId) : null;
+        if (!event && args.eventTitle) {
+          const lower = args.eventTitle.toLowerCase();
+          event = store.events.find(
+            (e) =>
+              e.title.toLowerCase().includes(lower) ||
+              ((lower.includes('workout') || lower.includes('fitness') || lower.includes('run')) &&
+                (e.category?.toLowerCase() === 'fitness' || e.title.toLowerCase().includes('run') || e.title.toLowerCase().includes('workout')))
+          );
+        }
+        if (!event && !args.eventId && !args.eventTitle) {
+          event = store.events[0];
+        }
+
+        if (!event) {
+          return { toolCallId, toolName, success: false, error: 'Event not found to reschedule.' };
+        }
+
+        let newStartTime = args.startTime;
+        let newEndTime = args.endTime;
+
+        if (args.time && !args.startTime) {
+          let hours = 19;
+          let minutes = 0;
+          const match12 = args.time.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
+          const match24 = args.time.match(/(\d+):(\d+)/);
+
+          if (match12) {
+            hours = parseInt(match12[1], 10);
+            minutes = match12[2] ? parseInt(match12[2], 10) : 0;
+            if (match12[3].toLowerCase() === 'pm' && hours < 12) hours += 12;
+            if (match12[3].toLowerCase() === 'am' && hours === 12) hours = 0;
+          } else if (match24) {
+            hours = parseInt(match24[1], 10);
+            minutes = parseInt(match24[2], 10);
+          }
+
+          const baseDate = event.startTime.split('T')[0];
+          const d = new Date(`${baseDate}T00:00:00.000Z`);
+          d.setUTCHours(hours, minutes, 0, 0);
+          newStartTime = d.toISOString();
+
+          const origDuration = new Date(event.endTime).getTime() - new Date(event.startTime).getTime();
+          newEndTime = new Date(d.getTime() + Math.max(30 * 60 * 1000, origDuration)).toISOString();
+        }
+
+        const updates: any = {};
+        if (args.title) updates.title = args.title;
+        if (args.category) updates.category = args.category;
+        if (newStartTime) updates.startTime = newStartTime;
+        if (newEndTime) updates.endTime = newEndTime;
+
+        const res = await store.updateEvent(event.id, updates);
+        const timeDisplay = new Date(updates.startTime || event.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        return {
+          toolCallId,
+          toolName,
+          success: res.success,
+          result: {
+            message: `Rescheduled "${updates.title || event.title}" to ${timeDisplay}.`,
+            event: { ...event, ...updates },
+          },
         };
       }
 
