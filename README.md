@@ -122,8 +122,19 @@ npx expo export -p web
 - [x] **Phase 2B**: Production Tasks & Habit Streak Engine
 - [x] **Phase 2C**: 24-Hour Calendar, Scheduler & Conflict Layout Engine
 - [x] **Phase 2D**: Strategic Goals, Progress Logger & Reminders
-- [ ] **Phase 3**: GPS Fitness Telemetry & Route Tracking (Running / Cycling / Walking)
+- [x] **Phase 3**: GPS Fitness Telemetry & Route Tracking (Running / Cycling / Walking / Hiking)
 - [ ] **Phase 4**: Mission Control AI Proactive Planner & Intelligent Rescheduling
+
+---
+
+## 🏃 Phase 3: TRACK Architecture
+
+- **Hardware GPS & Filtering**: Foreground GPS tracking using `expo-location` with high-accuracy navigation settings, filtering invalid speed spikes and stationary jitter.
+- **Geodesic Math**: Precise Haversine distance calculations, real-time pace ($min/km$), and MET-based caloric expenditure formulas.
+- **Live Workout HUD**: Stopwatch timer, live distance, current pace, average pace, cumulative elevation gain, and GPS signal lock indicator.
+- **Precision Vector Route Map**: Geographic bounding-box SVG projection rendering route polylines, start pins, and live position pulses across Web, iOS, and Android without external tile dependencies.
+- **Supabase Persistence**: Complete CRUD in `activityService.ts` with batched persistence of raw GPS breadcrumbs into `public.activity_points`.
+- **Demo & Simulated Route Fallback**: Built-in simulated GPS loop allowing offline testing in browser/sandbox environments.
 
 ---
 
