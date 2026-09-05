@@ -22,6 +22,8 @@ import { HabitCategory } from '../../features/habits/habitTypes';
 import { EventCategory, EVENT_CATEGORIES, EVENT_CATEGORY_COLORS } from '../../features/events/eventTypes';
 import { GoalCategory, GOAL_CATEGORIES, GOAL_CATEGORY_COLORS } from '../../features/goals/goalTypes';
 import { getLocalDateString } from '../../features/tasks/taskUtils';
+import { activityService } from '../../features/activities/activityService';
+import { calculateCalories } from '../../lib/location/locationUtils';
 
 type ActionTab = 'task' | 'habit' | 'event' | 'goal' | 'workout';
 
@@ -287,27 +289,53 @@ export const QuickActionSheet: React.FC = () => {
     }
   };
 
-  const handleCreateWorkout = () => {
+  const handleCreateWorkout = async () => {
     if (!workoutTitle.trim()) return;
     const distKm = parseFloat(workoutDistanceKm) || 5;
     const durMins = parseInt(workoutDurationMins, 10) || 30;
     const durSecs = durMins * 60;
     const distMeters = distKm * 1000;
     const speedMps = distMeters / durSecs;
+    const calculatedCals = calculateCalories(workoutSport, durSecs, distMeters);
+    const startedAt = new Date().toISOString();
 
-    addActivity({
+    const newActivity = {
       userId,
       title: workoutTitle.trim(),
       sportType: workoutSport,
       distanceMeters: distMeters,
       durationSeconds: durSecs,
-      movingTimeSeconds: durSecs - 60,
+      movingTimeSeconds: Math.max(0, durSecs - 60),
       avgSpeedMps: speedMps,
       maxSpeedMps: speedMps * 1.25,
-      calories: Math.round(distKm * 75),
+      calories: calculatedCals,
       elevationGainMeters: 45,
-      startedAt: new Date().toISOString(),
+      startedAt,
+      status: 'completed' as const,
+    };
+
+    addActivity(newActivity);
+
+    // Asynchronously persist to Supabase
+    activityService.createActivity(userId, {
+      title: workoutTitle.trim(),
+      sportType: workoutSport,
+      startedAt,
+      status: 'completed',
+    }).then((res) => {
+      if (res.data?.id) {
+        activityService.completeActivity(res.data.id, {
+          distanceMeters: distMeters,
+          durationSeconds: durSecs,
+          movingTimeSeconds: Math.max(0, durSecs - 60),
+          avgSpeedMps: speedMps,
+          maxSpeedMps: speedMps * 1.25,
+          calories: calculatedCals,
+          elevationGainMeters: 45,
+        });
+      }
     });
+
     setWorkoutTitle('');
     handleClose();
     showToast({

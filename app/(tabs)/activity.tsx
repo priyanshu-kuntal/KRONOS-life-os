@@ -66,11 +66,11 @@ export default function ActivityScreen() {
   const goalProgressPct = Math.min(100, Math.round((stats.totalDistanceKm / weeklyGoalKm) * 100));
 
   const handleStartWorkout = () => {
-    router.push('/workout/active');
+    router.push('/workout/active' as any);
   };
 
   const handleSelectActivity = (activity: Activity) => {
-    router.push(`/activity/${activity.id}`);
+    router.push(`/activity/${activity.id}` as any);
   };
 
   return (

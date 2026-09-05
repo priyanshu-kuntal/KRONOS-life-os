@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   notesHeader: {
     fontSize: 10,
     fontWeight: typography.fontWeight.bold,
-    letterSpacing: typography.letterSpacing.widest,
+    letterSpacing: typography.letterSpacing.wider,
     marginBottom: spacing.xs,
   },
   notesBody: {

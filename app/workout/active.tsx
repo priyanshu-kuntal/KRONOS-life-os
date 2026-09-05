@@ -206,7 +206,7 @@ export default function ActiveWorkoutScreen() {
               <View style={styles.startBtnWrap}>
                 <AppButton
                   title="START WORKOUT"
-                  icon={<Play size={18} color="#FFFFFF" style={{ marginRight: 6 }} />}
+                  leftIcon={<Play size={18} color="#FFFFFF" style={{ marginRight: 6 }} />}
                   onPress={handleStart}
                   size="lg"
                   variant="primary"
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 10,
     fontWeight: typography.fontWeight.bold,
-    letterSpacing: typography.letterSpacing.widest,
+    letterSpacing: typography.letterSpacing.wider,
     marginBottom: spacing.sm,
   },
   sportGrid: {

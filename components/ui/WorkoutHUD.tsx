@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   timerLabel: {
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.semibold,
-    letterSpacing: typography.letterSpacing.widest,
+    letterSpacing: typography.letterSpacing.wider,
     marginBottom: 2,
   },
   timerValue: {
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   distanceLabel: {
     fontSize: 11,
     fontWeight: typography.fontWeight.semibold,
-    letterSpacing: typography.letterSpacing.widest,
+    letterSpacing: typography.letterSpacing.wider,
     marginBottom: 2,
   },
   distanceRow: {
