@@ -16,6 +16,7 @@ export interface LLMResponse {
 }
 
 export const SERVER_KRONOS_TOOL_DECLARATIONS = [
+  // 1. Tasks
   {
     name: 'create_task',
     description: 'Create a new task in KRONOS Life OS with priority, due date, and estimated duration.',
@@ -71,6 +72,19 @@ export const SERVER_KRONOS_TOOL_DECLARATIONS = [
     },
   },
   {
+    name: 'list_tasks',
+    description: 'Query user tasks filtered by date or status.',
+    parameters: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'YYYY-MM-DD filter' },
+        status: { type: 'string', enum: ['pending', 'completed', 'all'] },
+      },
+    },
+  },
+
+  // 2. Habits
+  {
     name: 'log_habit',
     description: 'Log or toggle completion of a habit for today.',
     parameters: {
@@ -95,6 +109,55 @@ export const SERVER_KRONOS_TOOL_DECLARATIONS = [
     },
   },
   {
+    name: 'list_habits',
+    description: 'List user habits and current streak records.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+
+  // 3. Goals
+  {
+    name: 'create_goal',
+    description: 'Create a high-level goal with target value and unit.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        targetValue: { type: 'number' },
+        unit: { type: 'string' },
+        category: { type: 'string' },
+        deadline: { type: 'string' },
+      },
+      required: ['title', 'targetValue', 'unit'],
+    },
+  },
+  {
+    name: 'update_goal_progress',
+    description: 'Update the progress numerical value or status of an existing goal.',
+    parameters: {
+      type: 'object',
+      properties: {
+        goalId: { type: 'string', description: 'ID of the goal' },
+        goalTitle: { type: 'string', description: 'Title of the goal if ID is unknown' },
+        newValue: { type: 'number', description: 'New progress value' },
+        isDelta: { type: 'boolean', description: 'Whether newValue is incremental or absolute' },
+      },
+      required: ['newValue'],
+    },
+  },
+  {
+    name: 'list_goals',
+    description: 'List all active user goals and completion percentages.',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+
+  // 4. Calendar & Scheduling
+  {
     name: 'create_event',
     description: 'Schedule a calendar event or deep work session.',
     parameters: {
@@ -110,6 +173,22 @@ export const SERVER_KRONOS_TOOL_DECLARATIONS = [
     },
   },
   {
+    name: 'update_event',
+    description: 'Update or reschedule an existing calendar event or workout block to a new time window.',
+    parameters: {
+      type: 'object',
+      properties: {
+        eventId: { type: 'string', description: 'ID of the event to reschedule' },
+        eventTitle: { type: 'string', description: 'Title or name of event if ID is unknown (e.g. workout)' },
+        startTime: { type: 'string', description: 'New start time in ISO 8601 string' },
+        endTime: { type: 'string', description: 'New end time in ISO 8601 string' },
+        time: { type: 'string', description: 'Natural time string (e.g. 19:00 or 7 PM today)' },
+        title: { type: 'string', description: 'Updated title' },
+        category: { type: 'string', description: 'Updated category' },
+      },
+    },
+  },
+  {
     name: 'delete_event',
     description: 'Delete a scheduled calendar event. DESTRUCTIVE action requiring confirmation.',
     parameters: {
@@ -120,6 +199,19 @@ export const SERVER_KRONOS_TOOL_DECLARATIONS = [
       },
     },
   },
+  {
+    name: 'find_free_time',
+    description: 'Discover unscheduled calendar gap windows of a minimum duration on a given date.',
+    parameters: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'YYYY-MM-DD (defaults to today)' },
+        minimumMinutes: { type: 'number', description: 'Minimum duration in minutes (default 30)' },
+      },
+    },
+  },
+
+  // 5. Reminders
   {
     name: 'create_reminder',
     description: 'Set a notification reminder for a specific time.',
@@ -133,19 +225,16 @@ export const SERVER_KRONOS_TOOL_DECLARATIONS = [
       required: ['title', 'remindAt'],
     },
   },
+
+  // 6. Fitness Telemetry
   {
-    name: 'create_goal',
-    description: 'Create a high-level goal with target value and unit.',
+    name: 'get_fitness_trends',
+    description: 'Retrieve user fitness telemetry, mileage, average pace, and workout counts.',
     parameters: {
       type: 'object',
       properties: {
-        title: { type: 'string' },
-        targetValue: { type: 'number' },
-        unit: { type: 'string' },
-        category: { type: 'string' },
-        deadline: { type: 'string' },
+        days: { type: 'number', description: 'Number of past days (default 7)' },
       },
-      required: ['title', 'targetValue', 'unit'],
     },
   },
 ];
@@ -163,9 +252,16 @@ export async function callLLMProvider({
   userMessage: string;
   conversationHistory?: Array<{ role: string; content: string }>;
   toolResults?: Array<{ toolName: string; result: any }>;
-}): Promise<LLMResponse> {
-  const geminiKey = Deno.env.get('GEMINI_API_KEY');
-  const openAiKey = Deno.env.get('OPENAI_API_KEY');
+}) {
+  const getEnv = (key: string): string | undefined => {
+    if (typeof (globalThis as any).Deno !== 'undefined') {
+      return (globalThis as any).Deno.env.get(key);
+    }
+    return typeof process !== 'undefined' ? process.env[key] : undefined;
+  };
+
+  const geminiKey = getEnv('GEMINI_API_KEY');
+  const openAiKey = getEnv('OPENAI_API_KEY');
 
   // 1. Google Gemini 2.5 Flash Provider
   if (geminiKey) {
