@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import {
   Navigation,
   Flame,
@@ -15,8 +16,12 @@ import {
   Trophy,
   Plus,
   TrendingUp,
+  Play,
+  Zap,
+  Radio,
 } from 'lucide-react-native';
 import { useThemeStore } from '../../store/useThemeStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useLifeOsStore } from '../../store/useLifeOsStore';
 import { ActivityCard } from '../../components/ui/ActivityCard';
 import { MetricCard } from '../../components/ui/MetricCard';
@@ -24,17 +29,30 @@ import { SectionHeader } from '../../components/ui/SectionHeader';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ResponsiveContainer } from '../../components/ui/ResponsiveContainer';
 import { radii, spacing, typography } from '../../constants/theme';
-import { SportType } from '../../types/models';
+import { SportType, Activity } from '../../types/models';
 import { formatDurationHuman } from '../../lib/formatters';
 
-type SportFilter = 'all' | 'running' | 'cycling' | 'walking';
+type SportFilter = 'all' | 'running' | 'cycling' | 'walking' | 'hiking';
 
 export default function ActivityScreen() {
+  const router = useRouter();
   const { theme } = useThemeStore();
-  const { activities, getWeeklyFitnessStats, setQuickActionOpen } = useLifeOsStore();
+  const { user, isDemoMode } = useAuthStore();
+  const {
+    activities,
+    getWeeklyFitnessStats,
+    setQuickActionOpen,
+    fetchData,
+  } = useLifeOsStore();
   const { width } = useWindowDimensions();
 
   const [activeFilter, setActiveFilter] = useState<SportFilter>('all');
+
+  const userId = user?.id;
+
+  useEffect(() => {
+    fetchData(userId, isDemoMode);
+  }, [userId, isDemoMode]);
 
   const stats = getWeeklyFitnessStats();
   const isWide = width >= 768;
@@ -43,6 +61,17 @@ export default function ActivityScreen() {
     if (activeFilter === 'all') return true;
     return act.sportType === activeFilter;
   });
+
+  const weeklyGoalKm = user?.weeklyDistanceGoalKm || 25.0;
+  const goalProgressPct = Math.min(100, Math.round((stats.totalDistanceKm / weeklyGoalKm) * 100));
+
+  const handleStartWorkout = () => {
+    router.push('/workout/active' as any);
+  };
+
+  const handleSelectActivity = (activity: Activity) => {
+    router.push(`/activity/${activity.id}` as any);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -58,7 +87,7 @@ export default function ActivityScreen() {
                 Fitness Telemetry
               </Text>
               <Text style={[styles.pageSubtitle, { color: theme.textSecondary }]}>
-                Athletic metrics & activity log
+                Athletic metrics & GPS activity log
               </Text>
             </View>
 
@@ -67,22 +96,56 @@ export default function ActivityScreen() {
               onPress={() => setQuickActionOpen(true)}
               style={[
                 styles.recordBtn,
-                { backgroundColor: theme.primary },
+                { backgroundColor: theme.surfaceElevated, borderColor: theme.borderSubtle },
               ]}
             >
-              <Plus size={16} color="#FFFFFF" />
-              <Text style={styles.recordBtnText}>Log</Text>
+              <Plus size={15} color={theme.textPrimary} />
+              <Text style={[styles.recordBtnText, { color: theme.textPrimary }]}>Quick Log</Text>
             </TouchableOpacity>
           </View>
 
-          {/* 2. WEEKLY SUMMARY STATS GRID */}
+          {/* 2. HERO "START WORKOUT" PRIMARY CTA BANNER */}
+          <TouchableOpacity
+            activeOpacity={0.88}
+            onPress={handleStartWorkout}
+            style={[
+              styles.heroBanner,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.primary,
+              },
+            ]}
+          >
+            <View style={styles.heroLeft}>
+              <View style={[styles.pulseBadge, { backgroundColor: theme.primary + '25' }]}>
+                <Radio size={12} color={theme.primary} style={{ marginRight: 5 }} />
+                <Text style={[styles.pulseText, { color: theme.primary }]}>
+                  GPS ENGINE READY
+                </Text>
+              </View>
+
+              <Text style={[styles.heroTitle, { color: theme.textPrimary }]}>
+                Record Outdoor Session
+              </Text>
+              <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
+                High-frequency GPS breadcrumbs, pace analytics, and route maps.
+              </Text>
+            </View>
+
+            <View style={[styles.startPill, { backgroundColor: theme.primary }]}>
+              <Play size={18} color="#FFFFFF" style={{ marginLeft: 3 }} />
+              <Text style={styles.startPillText}>START</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* 3. WEEKLY SUMMARY STATS GRID */}
           <View style={isWide ? styles.statsRowWide : styles.statsGridMobile}>
             <MetricCard
               title="WEEKLY DISTANCE"
               value={stats.totalDistanceKm}
               unit="km"
               icon={<Navigation size={14} color={theme.secondary} />}
-              trend={{ value: '+18%', isPositive: true }}
+              subtitle={`${goalProgressPct}% of ${weeklyGoalKm}km goal`}
               accentColor={theme.secondary}
               style={styles.metricItem}
             />
@@ -90,7 +153,7 @@ export default function ActivityScreen() {
               title="ACTIVE TIME"
               value={formatDurationHuman(stats.totalDurationSeconds)}
               icon={<Clock size={14} color={theme.primary} />}
-              subtitle="4 sessions"
+              subtitle={`${stats.activitiesCount} sessions`}
               accentColor={theme.primary}
               style={styles.metricItem}
             />
@@ -98,14 +161,14 @@ export default function ActivityScreen() {
               title="ENERGY BURN"
               value={stats.totalCalories.toLocaleString()}
               unit="kcal"
-              icon={<Flame size={14} color={theme.textSecondary} />}
+              icon={<Flame size={14} color={theme.warning} />}
               subtitle="Metabolic total"
-              accentColor={theme.textPrimary}
+              accentColor={theme.warning}
               style={styles.metricItem}
             />
             <MetricCard
               title="TARGET PACE"
-              value="5:42"
+              value="5:30"
               unit="/km"
               icon={<TrendingUp size={14} color={theme.success} />}
               subtitle="Zone 2 baseline"
@@ -114,10 +177,10 @@ export default function ActivityScreen() {
             />
           </View>
 
-          {/* 3. SPORT FILTER PILLS */}
+          {/* 4. SPORT FILTER PILLS */}
           <SectionHeader
             title="Activity Feed"
-            badgeCount={`${filteredActivities.length} total`}
+            badgeCount={`${filteredActivities.length} recorded`}
           />
 
           <ScrollView
@@ -125,7 +188,7 @@ export default function ActivityScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterScroll}
           >
-            {(['all', 'running', 'cycling', 'walking'] as SportFilter[]).map((f) => (
+            {(['all', 'running', 'cycling', 'walking', 'hiking'] as SportFilter[]).map((f) => (
               <TouchableOpacity
                 key={f}
                 activeOpacity={0.75}
@@ -153,18 +216,22 @@ export default function ActivityScreen() {
             ))}
           </ScrollView>
 
-          {/* 4. ACTIVITY FEED CARDS */}
+          {/* 5. ACTIVITY FEED CARDS */}
           {filteredActivities.length > 0 ? (
             filteredActivities.map((act) => (
-              <ActivityCard key={act.id} activity={act} />
+              <ActivityCard
+                key={act.id}
+                activity={act}
+                onPress={handleSelectActivity}
+              />
             ))
           ) : (
             <EmptyState
-              icon={<Trophy size={26} color={theme.primary} />}
-              title="No Activities Found"
-              description="Log your workout to start tracking athletic telemetry."
-              actionText="Log Activity"
-              onActionPress={() => setQuickActionOpen(true)}
+              icon={<Trophy size={28} color={theme.primary} />}
+              title="No Activities Recorded"
+              description="Start a live GPS session or log your workout to track telemetry."
+              actionText="Start GPS Workout"
+              onActionPress={handleStartWorkout}
             />
           )}
         </ResponsiveContainer>
@@ -203,12 +270,72 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radii.md,
+    borderWidth: 1,
   },
   recordBtnText: {
-    color: '#FFFFFF',
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.bold,
     marginLeft: 4,
+  },
+  heroBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.lg,
+    borderRadius: radii['2xl'],
+    borderWidth: 1.5,
+    marginBottom: spacing.lg,
+    elevation: 4,
+    shadowColor: '#4F8CFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  heroLeft: {
+    flex: 1,
+    paddingRight: spacing.md,
+  },
+  pulseBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radii.full,
+    marginBottom: 6,
+  },
+  pulseText: {
+    fontSize: 9,
+    fontWeight: typography.fontWeight.heavy,
+    letterSpacing: typography.letterSpacing.wider,
+  },
+  heroTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.heavy,
+    marginBottom: 2,
+  },
+  heroSubtitle: {
+    fontSize: typography.fontSize.xs,
+    lineHeight: 16,
+  },
+  startPill: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  startPillText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: typography.fontWeight.heavy,
+    letterSpacing: 0.5,
+    marginTop: 2,
   },
   statsRowWide: {
     flexDirection: 'row',
@@ -223,6 +350,7 @@ const styles = StyleSheet.create({
   },
   metricItem: {
     minWidth: '47%',
+    flex: 1,
   },
   filterScroll: {
     gap: spacing.xs,
@@ -231,7 +359,7 @@ const styles = StyleSheet.create({
   },
   filterPill: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: radii.full,
     borderWidth: 1,
   },

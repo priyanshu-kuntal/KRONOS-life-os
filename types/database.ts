@@ -250,8 +250,201 @@ export interface Database {
           calories?: number;
           elevation_gain_meters?: number;
           started_at?: string;
-          completed_at?: string | null;
+          status?: 'active' | 'paused' | 'completed' | 'cancelled';
           notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      activity_points: {
+        Row: {
+          id: string;
+          activity_id: string;
+          user_id: string;
+          latitude: number;
+          longitude: number;
+          altitude: number | null;
+          speed: number | null;
+          heart_rate: number | null;
+          timestamp: string;
+        };
+        Insert: {
+          id?: string;
+          activity_id: string;
+          user_id: string;
+          latitude: number;
+          longitude: number;
+          altitude?: number | null;
+          speed?: number | null;
+          heart_rate?: number | null;
+          timestamp: string;
+        };
+        Update: {
+          id?: string;
+          activity_id?: string;
+          user_id?: string;
+          latitude?: number;
+          longitude?: number;
+          altitude?: number | null;
+          speed?: number | null;
+          heart_rate?: number | null;
+          timestamp?: string;
+        };
+      };
+      goals: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          description: string | null;
+          category: string;
+          target_value: number;
+          current_value: number;
+          unit: string;
+          start_date: string | null;
+          target_date: string | null;
+          deadline: string | null;
+          status: 'active' | 'completed' | 'paused' | 'archived' | 'abandoned';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          description?: string | null;
+          category?: string;
+          target_value?: number;
+          current_value?: number;
+          unit?: string;
+          start_date?: string | null;
+          target_date?: string | null;
+          deadline?: string | null;
+          status?: 'active' | 'completed' | 'paused' | 'archived' | 'abandoned';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          description?: string | null;
+          category?: string;
+          target_value?: number;
+          current_value?: number;
+          unit?: string;
+          start_date?: string | null;
+          target_date?: string | null;
+          deadline?: string | null;
+          status?: 'active' | 'completed' | 'paused' | 'archived' | 'abandoned';
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      reminders: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          task_id: string | null;
+          event_id: string | null;
+          habit_id: string | null;
+          goal_id: string | null;
+          remind_at: string;
+          is_completed: boolean;
+          enabled: boolean;
+          priority: 'low' | 'medium' | 'high';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          task_id?: string | null;
+          event_id?: string | null;
+          habit_id?: string | null;
+          goal_id?: string | null;
+          remind_at: string;
+          is_completed?: boolean;
+          enabled?: boolean;
+          priority?: 'low' | 'medium' | 'high';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          task_id?: string | null;
+          event_id?: string | null;
+          habit_id?: string | null;
+          goal_id?: string | null;
+          remind_at?: string;
+          is_completed?: boolean;
+          enabled?: boolean;
+          priority?: 'low' | 'medium' | 'high';
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          body: string;
+          type: string;
+          read: boolean;
+          data: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          body: string;
+          type?: string;
+          read?: boolean;
+          data?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          body?: string;
+          type?: string;
+          read?: boolean;
+          data?: Json | null;
+          created_at?: string;
+        };
+      };
+      ai_conversations: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          messages: Json;
+          context_type: 'general' | 'schedule_optimization' | 'fitness_coaching' | 'daily_briefing';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title?: string;
+          messages?: Json;
+          context_type?: 'general' | 'schedule_optimization' | 'fitness_coaching' | 'daily_briefing';
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          messages?: Json;
+          context_type?: 'general' | 'schedule_optimization' | 'fitness_coaching' | 'daily_briefing';
           created_at?: string;
           updated_at?: string;
         };

@@ -60,6 +60,16 @@ KRONOS Life OS
 - **Relational Milestones**: Link tasks and habits directly to long-term goals (`Goal` $\leftrightarrow$ `Task` $\leftrightarrow$ `Habit`).
 - **User Profile Management**: Live Supabase session display, initials avatar fallback, and Theme Switcher (Dark, Light, System).
 
+### 4. AI Mission Control (Analyze)
+- **AI Daily Mission Briefing**: Personalized executive briefing grounded strictly in actual tasks, calendar events, habit risks, fitness telemetry, and strategic goals.
+- **Cross-Domain & Domain Insights**: Heuristic and predictive intelligence identifying task postponement velocity, workout-workload collisions, and habit streak preservation.
+- **Controlled Function / Tool Calling Layer**: 15+ typed tools executing against domain services (`create_task`, `complete_task`, `delete_task`, `create_event`, `log_habit`, `find_free_time`, etc.).
+- **Confirmation Safety Guard**: Destructive actions (task/event/goal deletions, bulk schedule moves) require explicit interactive user authorization.
+- **Proactive Schedule Optimizer**: Detects tight transitions and concurrent schedule collisions, proposing actionable non-destructive calendar shifts.
+- **Conversational Mission Control Interface**: Mobile-first conversational modal with suggested prompts, markdown formatting, tool execution badges, and retry states.
+- **Zero Client Secrets & Deterministic Fallback**: Provider-agnostic architecture supporting remote Edge Functions with built-in deterministic cognition for 100% offline & Demo Sandbox resilience.
+- **Persistent AI Conversations**: User-scoped history stored in `public.ai_conversations` with PostgreSQL RLS policies.
+
 ---
 
 ## 🔐 Database Schema & Security
@@ -122,8 +132,19 @@ npx expo export -p web
 - [x] **Phase 2B**: Production Tasks & Habit Streak Engine
 - [x] **Phase 2C**: 24-Hour Calendar, Scheduler & Conflict Layout Engine
 - [x] **Phase 2D**: Strategic Goals, Progress Logger & Reminders
-- [ ] **Phase 3**: GPS Fitness Telemetry & Route Tracking (Running / Cycling / Walking)
+- [x] **Phase 3**: GPS Fitness Telemetry & Route Tracking (Running / Cycling / Walking / Hiking)
 - [ ] **Phase 4**: Mission Control AI Proactive Planner & Intelligent Rescheduling
+
+---
+
+## 🏃 Phase 3: TRACK Architecture
+
+- **Hardware GPS & Filtering**: Foreground GPS tracking using `expo-location` with high-accuracy navigation settings, filtering invalid speed spikes and stationary jitter.
+- **Geodesic Math**: Precise Haversine distance calculations, real-time pace ($min/km$), and MET-based caloric expenditure formulas.
+- **Live Workout HUD**: Stopwatch timer, live distance, current pace, average pace, cumulative elevation gain, and GPS signal lock indicator.
+- **Precision Vector Route Map**: Geographic bounding-box SVG projection rendering route polylines, start pins, and live position pulses across Web, iOS, and Android without external tile dependencies.
+- **Supabase Persistence**: Complete CRUD in `activityService.ts` with batched persistence of raw GPS breadcrumbs into `public.activity_points`.
+- **Demo & Simulated Route Fallback**: Built-in simulated GPS loop allowing offline testing in browser/sandbox environments.
 
 ---
 

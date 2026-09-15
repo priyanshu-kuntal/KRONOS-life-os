@@ -7,11 +7,13 @@ import {
   Target,
   Activity as ActivityIcon,
   MapPin,
+  ArrowRight,
 } from 'lucide-react-native';
 import { useLifeOsStore } from '../../store/useLifeOsStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useToastStore } from '../../store/useToastStore';
 import { useThemeStore } from '../../store/useThemeStore';
+import { useAiStore } from '../../store/useAiStore';
 import { BottomSheet } from './BottomSheet';
 import { Input } from './Input';
 import { AppButton } from './AppButton';
@@ -22,6 +24,8 @@ import { HabitCategory } from '../../features/habits/habitTypes';
 import { EventCategory, EVENT_CATEGORIES, EVENT_CATEGORY_COLORS } from '../../features/events/eventTypes';
 import { GoalCategory, GOAL_CATEGORIES, GOAL_CATEGORY_COLORS } from '../../features/goals/goalTypes';
 import { getLocalDateString } from '../../features/tasks/taskUtils';
+import { activityService } from '../../features/activities/activityService';
+import { calculateCalories } from '../../lib/location/locationUtils';
 
 type ActionTab = 'task' | 'habit' | 'event' | 'goal' | 'workout';
 
@@ -287,27 +291,53 @@ export const QuickActionSheet: React.FC = () => {
     }
   };
 
-  const handleCreateWorkout = () => {
+  const handleCreateWorkout = async () => {
     if (!workoutTitle.trim()) return;
     const distKm = parseFloat(workoutDistanceKm) || 5;
     const durMins = parseInt(workoutDurationMins, 10) || 30;
     const durSecs = durMins * 60;
     const distMeters = distKm * 1000;
     const speedMps = distMeters / durSecs;
+    const calculatedCals = calculateCalories(workoutSport, durSecs, distMeters);
+    const startedAt = new Date().toISOString();
 
-    addActivity({
+    const newActivity = {
       userId,
       title: workoutTitle.trim(),
       sportType: workoutSport,
       distanceMeters: distMeters,
       durationSeconds: durSecs,
-      movingTimeSeconds: durSecs - 60,
+      movingTimeSeconds: Math.max(0, durSecs - 60),
       avgSpeedMps: speedMps,
       maxSpeedMps: speedMps * 1.25,
-      calories: Math.round(distKm * 75),
+      calories: calculatedCals,
       elevationGainMeters: 45,
-      startedAt: new Date().toISOString(),
+      startedAt,
+      status: 'completed' as const,
+    };
+
+    addActivity(newActivity);
+
+    // Asynchronously persist to Supabase
+    activityService.createActivity(userId, {
+      title: workoutTitle.trim(),
+      sportType: workoutSport,
+      startedAt,
+      status: 'completed',
+    }).then((res) => {
+      if (res.data?.id) {
+        activityService.completeActivity(res.data.id, {
+          distanceMeters: distMeters,
+          durationSeconds: durSecs,
+          movingTimeSeconds: Math.max(0, durSecs - 60),
+          avgSpeedMps: speedMps,
+          maxSpeedMps: speedMps * 1.25,
+          calories: calculatedCals,
+          elevationGainMeters: 45,
+        });
+      }
     });
+
     setWorkoutTitle('');
     handleClose();
     showToast({
@@ -324,6 +354,37 @@ export const QuickActionSheet: React.FC = () => {
       title="Quick Action"
       subtitle="Log or schedule into your personal Life OS"
     >
+      {/* AI Mission Control Quick Launch Banner */}
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => {
+          handleClose();
+          useAiStore.getState().openChat();
+        }}
+        style={[
+          styles.aiBanner,
+          {
+            backgroundColor: `${theme.aiIntelligence}15`,
+            borderColor: `${theme.aiIntelligence}40`,
+          },
+        ]}
+      >
+        <View style={styles.aiBannerLeft}>
+          <View style={[styles.aiBannerDot, { backgroundColor: `${theme.aiIntelligence}28` }]}>
+            <Sparkles size={14} color={theme.aiIntelligence} />
+          </View>
+          <View>
+            <Text style={[styles.aiBannerTitle, { color: theme.textPrimary }]}>
+              Ask Mission Control AI
+            </Text>
+            <Text style={[styles.aiBannerSub, { color: theme.textSecondary }]}>
+              Natural-language schedule commands, analysis & advice
+            </Text>
+          </View>
+        </View>
+        <ArrowRight size={14} color={theme.aiIntelligence} />
+      </TouchableOpacity>
+
       {/* Action Type Selector Pills */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll}>
         <TouchableOpacity
@@ -1006,5 +1067,35 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     textAlign: 'center',
     marginVertical: spacing.xs,
+  },
+  aiBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 10,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    marginBottom: spacing.sm,
+  },
+  aiBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  aiBannerDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  aiBannerTitle: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+  },
+  aiBannerSub: {
+    fontSize: 10,
+    marginTop: 2,
   },
 });

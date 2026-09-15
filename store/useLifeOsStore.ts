@@ -32,6 +32,7 @@ import { CreateGoalInput, UpdateGoalInput } from '../features/goals/goalTypes';
 import { calculateGoalStatus } from '../features/goals/goalUtils';
 import { reminderService } from '../features/reminders/reminderService';
 import { CreateReminderInput, UpdateReminderInput } from '../features/reminders/reminderTypes';
+import { activityService } from '../features/activities/activityService';
 
 const mockInitialReminders: Reminder[] = [
   {
@@ -71,6 +72,7 @@ interface LifeOsState {
   isLoadingEvents: boolean;
   isLoadingGoals: boolean;
   isLoadingReminders: boolean;
+  isLoadingActivities: boolean;
 
   // Actions
   setSelectedDate: (date: string) => void;
@@ -107,7 +109,8 @@ interface LifeOsState {
   deleteReminder: (reminderId: string) => Promise<{ success: boolean; error?: string }>;
 
   // Activity actions
-  addActivity: (activity: Omit<Activity, 'id' | 'startedAt'> & { startedAt?: string }) => void;
+  addActivity: (activity: Omit<Activity, 'id' | 'startedAt'> & { id?: string; startedAt?: string }) => void;
+  deleteActivity: (activityId: string) => Promise<{ success: boolean; error?: string }>;
 
   // AI actions
   dismissInsight: (insightId: string) => void;
@@ -134,6 +137,7 @@ export const useLifeOsStore = create<LifeOsState>((set, get) => ({
   isLoadingEvents: false,
   isLoadingGoals: false,
   isLoadingReminders: false,
+  isLoadingActivities: false,
 
   setSelectedDate: (date: string) => set({ selectedDate: date }),
   setQuickActionOpen: (isOpen: boolean) => set({ isQuickActionOpen: isOpen }),
@@ -144,6 +148,7 @@ export const useLifeOsStore = create<LifeOsState>((set, get) => ({
         tasks: mockTasks,
         habits: mockHabits,
         events: mockEvents,
+        activities: mockActivities,
         goals: mockGoals as Goal[],
         reminders: mockInitialReminders,
         isLoadingTasks: false,
@@ -151,6 +156,7 @@ export const useLifeOsStore = create<LifeOsState>((set, get) => ({
         isLoadingEvents: false,
         isLoadingGoals: false,
         isLoadingReminders: false,
+        isLoadingActivities: false,
       });
       return;
     }
@@ -162,14 +168,16 @@ export const useLifeOsStore = create<LifeOsState>((set, get) => ({
         isLoadingEvents: true,
         isLoadingGoals: true,
         isLoadingReminders: true,
+        isLoadingActivities: true,
       });
 
-      const [tasksRes, habitsRes, eventsRes, goalsRes, remindersRes] = await Promise.all([
+      const [tasksRes, habitsRes, eventsRes, goalsRes, remindersRes, activitiesRes] = await Promise.all([
         taskService.fetchTasks(userId),
         habitService.fetchHabits(userId),
         eventService.fetchEvents(userId),
         goalService.fetchGoals(userId),
         reminderService.fetchReminders(userId),
+        activityService.fetchActivities(userId),
       ]);
 
       set({
@@ -178,11 +186,13 @@ export const useLifeOsStore = create<LifeOsState>((set, get) => ({
         events: eventsRes.data || [],
         goals: goalsRes.data || [],
         reminders: remindersRes.data || [],
+        activities: activitiesRes.data && activitiesRes.data.length > 0 ? activitiesRes.data : mockActivities,
         isLoadingTasks: false,
         isLoadingHabits: false,
         isLoadingEvents: false,
         isLoadingGoals: false,
         isLoadingReminders: false,
+        isLoadingActivities: false,
       });
     } catch (err) {
       console.warn('Error in useLifeOsStore.fetchData:', err);
@@ -192,6 +202,7 @@ export const useLifeOsStore = create<LifeOsState>((set, get) => ({
         isLoadingEvents: false,
         isLoadingGoals: false,
         isLoadingReminders: false,
+        isLoadingActivities: false,
       });
     }
   },
@@ -684,10 +695,22 @@ export const useLifeOsStore = create<LifeOsState>((set, get) => ({
   addActivity: (newActivityData) => {
     const newActivity: Activity = {
       ...newActivityData,
-      id: generateId('act'),
+      id: newActivityData.id || generateId('act'),
       startedAt: newActivityData.startedAt || new Date().toISOString(),
     };
     set((state) => ({ activities: [newActivity, ...state.activities] }));
+  },
+
+  deleteActivity: async (activityId: string) => {
+    const previousActivities = get().activities;
+    set((state) => ({ activities: state.activities.filter((a) => a.id !== activityId) }));
+
+    const res = await activityService.deleteActivity(activityId);
+    if (!res.success) {
+      set({ activities: previousActivities });
+      return { success: false, error: res.error };
+    }
+    return { success: true };
   },
 
   dismissInsight: (insightId: string) => {
